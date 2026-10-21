@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Цветовые модели: CMYK – RGB – HLS</title>
+    <style>
+        :root {
+            --bg: #121418;
+            --card-bg: #1c1f26;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #2d3342;
+            --accent: #38bdf8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 1rem;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .preview-container {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            background: var(--card-bg);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            margin-bottom: 2rem;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .color-box {
+            width: 70px;
+            height: 70px;
+            border-radius: 8px;
+            border: 2px solid #fff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transition: background-color 0.1s ease;
+        }
+
+        .color-codes {
+            display: flex;
+            gap: 1.5rem;
+            font-family: monospace;
+            font-size: 0.95rem;
+            color: var(--accent);
+            flex-wrap: wrap;
+        }
+
+        .models-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .card-header h2 {
+            font-size: 1.25rem;
+        }
+
+        .picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        input[type="color"] {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            overflow: hidden;
+            cursor: pointer;
+            background: none;
+            outline: none;
+        }
+
+        input[type="color"]::-webkit-color-swatch-wrapper {
+            padding: 0;
+            border-radius: 50%;
+        }
+
+        input[type="color"]::-webkit-color-swatch {
+            border: none;
+            border-radius: 50%;
+            padding: 0;
+        }
+
+        input[type="color"]::-moz-color-swatch {
+            border: none;
+            border-radius: 50%;
+            padding: 0;
+        }
+
+        .control-row {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .control-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .inputs-wrap {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        input[type="number"] {
+            width: 65px;
+            background: #0f1115;
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.35rem 0.5rem;
+            border-radius: 6px;
+            text-align: right;
+            font-family: monospace;
+        }
+
+        input[type="number"]:focus {
+            outline: 1px solid var(--accent);
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Интерактивный пересчет цветов</h1>
+    <p class="subtitle">CMYK – RGB – HLS</p>
+
+    <div class="preview-container">
+        <div id="previewBox" class="color-box"></div>
+        <div class="color-codes">
+            <div id="lblRgb">RGB: (255, 0, 0)</div>
+            <div id="lblCmyk">CMYK: (0%, 100%, 100%, 0%)</div>
+            <div id="lblHls">HLS: (0°, 50%, 100%)</div>
+        </div>
+    </div>
+
+    <div class="models-grid">
+
+        <!-- RGB БЛОК -->
+        <div class="card">
+            <div class="card-header">
+                <h2>RGB</h2>
+                <div class="picker-wrapper">
+                    <span>Палитра:</span>
+                    <input type="color" id="pickerRgb">
+                </div>
+            </div>
+
+            <div class="control-row">
+                <div class="control-label"><span>Red (Красный)</span><span>[0..255]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slR" min="0" max="255">
+                    <input type="number" id="numR" min="0" max="255">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-label"><span>Green (Зеленый)</span><span>[0..255]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slG" min="0" max="255">
+                    <input type="number" id="numG" min="0" max="255">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-label"><span>Blue (Синий)</span><span>[0..255]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slB" min="0" max="255">
+                    <input type="number" id="numB" min="0" max="255">
+                </div>
+            </div>
+        </div>
+
+        <!-- CMYK БЛОК -->
+        <div class="card">
+            <div class="card-header">
+                <h2>CMYK</h2>
+                <div class="picker-wrapper">
+                    <span>Палитра:</span>
+                    <input type="color" id="pickerCmyk">
+                </div>
+            </div>
+
+            <div class="control-row">
+                <div class="control-label"><span>Cyan (Голубой)</span><span>[0..100%]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slC" min="0" max="100">
+                    <input type="number" id="numC" min="0" max="100">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-label"><span>Magenta (Пурпурный)</span><span>[0..100%]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slM" min="0" max="100">
+                    <input type="number" id="numM" min="0" max="100">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-label"><span>Yellow (Желтый)</span><span>[0..100%]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slY" min="0" max="100">
+                    <input type="number" id="numY" min="0" max="100">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-label"><span>Key (Черный)</span><span>[0..100%]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slK" min="0" max="100">
+                    <input type="number" id="numK" min="0" max="100">
+                </div>
+            </div>
+        </div>
+
+        <!-- HLS БЛОК -->
+        <div class="card">
+            <div class="card-header">
+                <h2>HLS</h2>
+                <div class="picker-wrapper">
+                    <span>Палитра:</span>
+                    <input type="color" id="pickerHls">
+                </div>
+            </div>
+
+            <div class="control-row">
+                <div class="control-label"><span>Hue (Оттенок)</span><span>[0..360°]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slH" min="0" max="360">
+                    <input type="number" id="numH" min="0" max="360">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-label"><span>Lightness (Светлота)</span><span>[0..100%]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slL" min="0" max="100">
+                    <input type="number" id="numL" min="0" max="100">
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-label"><span>Saturation (Насыщенность)</span><span>[0..100%]</span></div>
+                <div class="inputs-wrap">
+                    <input type="range" id="slS" min="0" max="100">
+                    <input type="number" id="numS" min="0" max="100">
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- ФЛАГ БЛОКИРОВКИ ОТ ЗАЦИКЛИВАНИЯ ОБРАТНЫХ ВЫЗОВОВ ---
+        let isUpdating = false;
+
+        // --- МАТЕМАТИЧЕСКИЕ ПРЕОБРАЗОВАНИЯ ---
+
+        // 1. RGB -> CMYK
+        function rgbToCmyk(r, g, b) {
+            const rf = r / 255;
+            const gf = g / 255;
+            const bf = b / 255;
+            const k = 1 - Math.max(rf, gf, bf);
+
+            if (k >= 0.9999) {
+                return { c: 0, m: 0, y: 0, k: 100 };
+            }
+            const c = (1 - rf - k) / (1 - k);
+            const m = (1 - gf - k) / (1 - k);
+            const y = (1 - bf - k) / (1 - k);
+
+            return {
+                c: Math.round(c * 100),
+                m: Math.round(m * 100),
+                y: Math.round(y * 100),
+                k: Math.round(k * 100)
+            };
+        }
+
+        // 2. CMYK -> RGB
+        function cmykToRgb(c, m, y, k) {
+            const cf = c / 100;
+            const mf = m / 100;
+            const yf = y / 100;
+            const kf = k / 100;
+
+            const r = 255 * (1 - cf) * (1 - kf);
+            const g = 255 * (1 - mf) * (1 - kf);
+            const b = 255 * (1 - yf) * (1 - kf);
+
+            return {
+                r: Math.round(Math.max(0, Math.min(255, r))),
+                g: Math.round(Math.max(0, Math.min(255, g))),
+                b: Math.round(Math.max(0, Math.min(255, b)))
+            };
+        }
+
+        // 3. RGB -> HLS
+        function rgbToHls(r, g, b) {
+            const rf = r / 255;
+            const gf = g / 255;
+            const bf = b / 255;
+
+            const max = Math.max(rf, gf, bf);
+            const min = Math.min(rf, gf, bf);
+            const delta = max - min;
+
+            let l = (max + min) / 2;
+            let h = 0;
+            let s = 0;
+
+            if (delta !== 0) {
+                s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+
+                if (max === rf) {
+                    h = (gf - bf) / delta + (gf < bf ? 6 : 0);
+                } else if (max === gf) {
+                    h = (bf - rf) / delta + 2;
+                } else {
+                    h = (rf - gf) / delta + 4;
+                }
+                h *= 60;
+            }
+
+            return {
+                h: Math.round(h),
+                l: Math.round(l * 100),
+                s: Math.round(s * 100)
+            };
+        }
+
+        // 4. HLS -> RGB
+        function hlsToRgb(h, l, s) {
+            const hf = h / 360;
+            const lf = l / 100;
+            const sf = s / 100;
+
+            if (sf === 0) {
+                const val = Math.round(lf * 255);
+                return { r: val, g: val, b: val };
+            }
+
+            const hue2rgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            };
+
+            const q = lf < 0.5 ? lf * (1 + sf) : lf + sf - lf * sf;
+            const p = 2 * lf - q;
+
+            const r = Math.round(hue2rgb(p, q, hf + 1 / 3) * 255);
+            const g = Math.round(hue2rgb(p, q, hf) * 255);
+            const b = Math.round(hue2rgb(p, q, hf - 1 / 3) * 255);
+
+            return {
+                r: Math.max(0, Math.min(255, r)),
+                g: Math.max(0, Math.min(255, g)),
+                b: Math.max(0, Math.min(255, b))
+            };
+        }
+
+        // Утилита перевода RGB в HEX для <input type="color">
+        function rgbToHex(r, g, b) {
+            return "#" + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+        }
+
+        function hexToRgb(hex) {
+            const num = parseInt(hex.slice(1), 16);
+            return {
+                r: (num >> 16) & 255,
+                g: (num >> 8) & 255,
+                b: num & 255
+            };
+        }
+
+        // --- ОБНОВЛЕНИЕ UI ---
+        function updateUI(rgb, origin) {
+            if (isUpdating) return;
+            isUpdating = true;
+
+            const cmyk = rgbToCmyk(rgb.r, rgb.g, rgb.b);
+            const hls = rgbToHls(rgb.r, rgb.g, rgb.b);
+            const hex = rgbToHex(rgb.r, rgb.g, rgb.b);
+
+            // Плашка предпросмотра и строковые метки
+            document.getElementById('previewBox').style.backgroundColor = hex;
+            document.getElementById('lblRgb').textContent = `RGB: (${rgb.r}, ${rgb.g}, ${rgb.b})`;
+            document.getElementById('lblCmyk').textContent = `CMYK: (${cmyk.c}%, ${cmyk.m}%, ${cmyk.y}%, ${cmyk.k}%)`;
+            document.getElementById('lblHls').textContent = `HLS: (${hls.h}°, ${hls.l}%, ${hls.s}%)`;
+
+            // Палитры
+            document.getElementById('pickerRgb').value = hex;
+            document.getElementById('pickerCmyk').value = hex;
+            document.getElementById('pickerHls').value = hex;
+
+            // RGB
+            if (origin !== 'rgb') {
+                document.getElementById('slR').value = rgb.r;
+                document.getElementById('numR').value = rgb.r;
+                document.getElementById('slG').value = rgb.g;
+                document.getElementById('numG').value = rgb.g;
+                document.getElementById('slB').value = rgb.b;
+                document.getElementById('numB').value = rgb.b;
+            }
+
+            // CMYK
+            if (origin !== 'cmyk') {
+                document.getElementById('slC').value = cmyk.c;
+                document.getElementById('numC').value = cmyk.c;
+                document.getElementById('slM').value = cmyk.m;
+                document.getElementById('numM').value = cmyk.m;
+                document.getElementById('slY').value = cmyk.y;
+                document.getElementById('numY').value = cmyk.y;
+                document.getElementById('slK').value = cmyk.k;
+                document.getElementById('numK').value = cmyk.k;
+            }
+
+            // HLS
+            if (origin !== 'hls') {
+                document.getElementById('slH').value = hls.h;
+                document.getElementById('numH').value = hls.h;
+                document.getElementById('slL').value = hls.l;
+                document.getElementById('numL').value = hls.l;
+                document.getElementById('slS').value = hls.s;
+                document.getElementById('numS').value = hls.s;
+            }
+
+            isUpdating = false;
+        }
+
+        // Связывание ползунка и числового поля внутри модели
+        function bindPair(sliderId, numId, onValueChange) {
+            const sl = document.getElementById(sliderId);
+            const num = document.getElementById(numId);
+
+            sl.addEventListener('input', () => {
+                num.value = sl.value;
+                onValueChange();
+            });
+
+            num.addEventListener('input', () => {
+                let val = Number(num.value);
+                const min = Number(num.min);
+                const max = Number(num.max);
+                if (val < min) val = min;
+                if (val > max) val = max;
+                sl.value = val;
+                onValueChange();
+            });
+        }
+
+        // Слушатели RGB
+        const onRgbChange = () => {
+            const r = Number(document.getElementById('slR').value);
+            const g = Number(document.getElementById('slG').value);
+            const b = Number(document.getElementById('slB').value);
+            updateUI({ r, g, b }, 'rgb');
+        };
+        bindPair('slR', 'numR', onRgbChange);
+        bindPair('slG', 'numG', onRgbChange);
+        bindPair('slB', 'numB', onRgbChange);
+
+        // Слушатели CMYK
+        const onCmykChange = () => {
+            const c = Number(document.getElementById('slC').value);
+            const m = Number(document.getElementById('slM').value);
+            const y = Number(document.getElementById('slY').value);
+            const k = Number(document.getElementById('slK').value);
+            const rgb = cmykToRgb(c, m, y, k);
+            updateUI(rgb, 'cmyk');
+        };
+        bindPair('slC', 'numC', onCmykChange);
+        bindPair('slM', 'numM', onCmykChange);
+        bindPair('slY', 'numY', onCmykChange);
+        bindPair('slK', 'numK', onCmykChange);
+
+        // Слушатели HLS
+        const onHlsChange = () => {
+            const h = Number(document.getElementById('slH').value);
+            const l = Number(document.getElementById('slL').value);
+            const s = Number(document.getElementById('slS').value);
+            const rgb = hlsToRgb(h, l, s);
+            updateUI(rgb, 'hls');
+        };
+        bindPair('slH', 'numH', onHlsChange);
+        bindPair('slL', 'numL', onHlsChange);
+        bindPair('slS', 'numS', onHlsChange);
+
+        // Слушатели пикеров палитры
+        ['pickerRgb', 'pickerCmyk', 'pickerHls'].forEach(id => {
+            document.getElementById(id).addEventListener('input', (e) => {
+                const rgb = hexToRgb(e.target.value);
+                updateUI(rgb, 'palette');
+            });
+        });
+
+        // Начальный цвет (чистый синий/голубой)
+        updateUI({ r: 56, g: 189, b: 248 }, null);
+    </script>
+</body>
+
+</html>
