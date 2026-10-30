@@ -310,10 +310,9 @@
     </div>
 
     <script>
-        // --- ФЛАГ БЛОКИРОВКИ ОТ ЗАЦИКЛИВАНИЯ ОБРАТНЫХ ВЫЗОВОВ ---
         let isUpdating = false;
 
-        // --- МАТЕМАТИЧЕСКИЕ ПРЕОБРАЗОВАНИЯ ---
+        // ПРЕОБРАЗОВАНИЯ
 
         // 1. RGB -> CMYK
         function rgbToCmyk(r, g, b) {
@@ -560,7 +559,8 @@
 
         // Начальный цвет (чистый синий/голубой)
         updateUI({ r: 56, g: 189, b: 248 }, null);
+        // xdg-open index.html
     </script>
 </body>
 
-</html>
+</html>   
