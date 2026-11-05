@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Лабораторная 2: Обработка изображений (Вариант 1)</title>
+  <style>
+    :root {
+      --bg: #121418;
+      --card: #1c1f26;
+      --border: #2d3342;
+      --text: #f1f5f9;
+      --accent: #38bdf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 20px; }
+    h1 { font-size: 1.5rem; margin-bottom: 12px; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+    button, input[type="file"] {
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    .controls { background: var(--card); border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media(max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .panel { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 15px; }
+    .panel h2 { font-size: 1.1rem; margin-bottom: 10px; }
+    canvas { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 4px; display: block; margin-bottom: 10px; background: #000; }
+    .hist-canvas { width: 100%; height: 120px; }
+    label { font-size: 13px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+  <h1>Обработка изображений: контрастирование и эквализация</h1>
+
+  <!-- панель загрузки и генерации тестовых картинок -->
+  <div class="toolbar">
+    <input type="file" id="fileInput" accept="image/*">
+    <button id="btnGenDark">тест: темное фото</button>
+    <button id="btnGenFaded">тест: блеклое фото</button>
+  </div>
+
+  <!-- панель выбора методов -->
+  <div class="controls">
+    <button id="btnReset">сброс к оригиналу</button>
+    <button id="btnInvert">инверсия (негатив)</button>
+    <button id="btnLinear">линейное контрастирование</button>
+    <button id="btnEqRgb">эквализация RGB</button>
+    <button id="btnEqHsv">эквализация HSV (по яркости)</button>
+
+    <div style="display:flex; align-items:center; gap:8px; margin-left:auto;">
+      <label for="brightSlider">яркость:</label>
+      <input type="range" id="brightSlider" min="-100" max="100" value="0">
+      <span id="brightVal" style="font-size:12px; min-width:30px;">0</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- исходник -->
+    <div class="panel">
+      <h2>Оригинал</h2>
+      <canvas id="cvsOrig"></canvas>
+      <label>Гистограмма яркости:</label>
+      <canvas id="histOrig" class="hist-canvas" width="256" height="120"></canvas>
+    </div>
+
+    <!-- результат обработки -->
+    <div class="panel">
+      <h2 id="resTitle">Результат обработки</h2>
+      <canvas id="cvsRes"></canvas>
+      <label>Гистограмма результата:</label>
+      <canvas id="histRes" class="hist-canvas" width="256" height="120"></canvas>
+    </div>
+  </div>
+
+  <script>
+    // канвасы и контексты
+    const cvsOrig = document.getElementById('cvsOrig');
+    const ctxOrig = cvsOrig.getContext('2d');
+    const cvsRes = document.getElementById('cvsRes');
+    const ctxRes = cvsRes.getContext('2d');
+
+    const histOrig = document.getElementById('histOrig');
+    const histRes = document.getElementById('histRes');
+
+    // здесь держим сырые пиксели оригинала чтобы быстро применять фильтры
+    let origImgData = null;
+
+    // отрисовка столбиков гистограммы на канвасе
+    function drawHistogram(canvas, imgData) {
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // собираем яркости по формуле из первой лекции
+      const hist = new Array(256).fill(0);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const y = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+        hist[y]++;
+      }
+
+      // нормируем высоту чтобы влезло в канвас
+      let maxVal = 0;
+      for (let i = 0; i < 256; i++) {
+        if (hist[i] > maxVal) maxVal = hist[i];
+      }
+
+      ctx.fillStyle = '#38bdf8';
+      for (let i = 0; i < 256; i++) {
+        const barH = (hist[i] / maxVal) * (h - 5);
+        ctx.fillRect(i * (w / 256), h - barH, (w / 256), barH);
+      }
+    }
+
+    // показываем картинку и сразу обновляем результат
+    function setOriginalImage(img) {
+      cvsOrig.width = img.width;
+      cvsOrig.height = img.height;
+      ctxOrig.drawImage(img, 0, 0);
+
+      cvsRes.width = img.width;
+      cvsRes.height = img.height;
+
+      origImgData = ctxOrig.getImageData(0, 0, img.width, img.height);
+      resetToOrig();
+    }
+
+    function resetToOrig() {
+      if (!origImgData) return;
+      ctxRes.putImageData(origImgData, 0, 0);
+      drawHistogram(histOrig, origImgData);
+      drawHistogram(histRes, origImgData);
+      document.getElementById('resTitle').textContent = 'Результат (Оригинал)';
+      document.getElementById('brightSlider').value = 0;
+      document.getElementById('brightVal').textContent = '0';
+    }
+
+    // 1. поэлементная операция: сдвиг яркости
+    function applyBrightness(delta) {
+      if (!origImgData) return;
+      const res = ctxRes.createImageData(origImgData);
+      const s = origImgData.data;
+      const d = res.data;
+
+      // просто прибавляем дельту к каждому каналу
+      for (let i = 0; i < s.length; i += 4) {
+        d[i] = Math.min(255, Math.max(0, s[i] + delta));
+        d[i+1] = Math.min(255, Math.max(0, s[i+1] + delta));
+        d[i+2] = Math.min(255, Math.max(0, s[i+2] + delta));
+        d[i+3] = s[i+3];
+      }
+      ctxRes.putImageData(res, 0, 0);
+      drawHistogram(histRes, res);
+      document.getElementById('resTitle').textContent = `Поэлементно: Яркость (${delta})`;
+    }
+
+    // 2. поэлементная операция: инверсия (негатив)
+    function applyInvert() {
+      if (!origImgData) return;
+      const res = ctxRes.createImageData(origImgData);
+      const s = origImgData.data;
+      const d = res.data;
+
+      // вычитаем значение из 255
+      for (let i = 0; i < s.length; i += 4) {
+        d[i] = 255 - s[i];
+        d[i+1] = 255 - s[i+1];
+        d[i+2] = 255 - s[i+2];
+        d[i+3] = s[i+3];
+      }
+      ctxRes.putImageData(res, 0, 0);
+      drawHistogram(histRes, res);
+      document.getElementById('resTitle').textContent = 'Поэлементно: Инверсия (Негатив)';
+    }
+
+    // 3. линейное контрастирование (растягиваем диапазон)
+    function applyLinearContrast() {
+      if (!origImgData) return;
+      const res = ctxRes.createImageData(origImgData);
+      const s = origImgData.data;
+      const d = res.data;
+
+      // ищем общий минимум и максимум яркостей по картинке
+      let min = 255, max = 0;
+      for (let i = 0; i < s.length; i += 4) {
+        const y = Math.round(0.299 * s[i] + 0.587 * s[i+1] + 0.114 * s[i+2]);
+        if (y < min) min = y;
+        if (y > max) max = y;
+      }
+
+      // если картинка монотонная, то ничего не тянем
+      if (max === min) return;
+
+      // классическая формула линейной растяжки в [0, 255]
+      const scale = 255 / (max - min);
+      for (let i = 0; i < s.length; i += 4) {
+        d[i] = Math.min(255, Math.max(0, (s[i] - min) * scale));
+        d[i+1] = Math.min(255, Math.max(0, (s[i+1] - min) * scale));
+        d[i+2] = Math.min(255, Math.max(0, (s[i+2] - min) * scale));
+        d[i+3] = s[i+3];
+      }
+
+      ctxRes.putImageData(res, 0, 0);
+      drawHistogram(histRes, res);
+      document.getElementById('resTitle').textContent = `Линейное контрастирование [${min}..${max}] -> [0..255]`;
+    }
+
+    // вспомогалка: считаем таблицу подстановки (lut) по cdf
+    function buildEqualizationLut(channelData, step, totalPixels) {
+      const hist = new Array(256).fill(0);
+      for (let i = 0; i < channelData.length; i += step) {
+        hist[channelData[i]]++;
+      }
+
+      // кумулятивная гистограмма
+      const lut = new Uint8Array(256);
+      let sum = 0;
+      for (let i = 0; i < 256; i++) {
+        sum += hist[i];
+        lut[i] = Math.round((sum / totalPixels) * 255);
+      }
+      return lut;
+    }
+
+    // 4. эквализация гистограммы поканально в rgb
+    function applyEqualizeRgb() {
+      if (!origImgData) return;
+      const res = ctxRes.createImageData(origImgData);
+      const s = origImgData.data;
+      const d = res.data;
+      const total = origImgData.width * origImgData.height;
+
+      // строим таблицы для каждого канала независимо
+      // передаем со сдвигом 0 (r), 1 (g), 2 (b)
+      const lutR = buildEqualizationLut(s.subarray(0), 4, total);
+      const lutG = buildEqualizationLut(s.subarray(1), 4, total);
+      const lutB = buildEqualizationLut(s.subarray(2), 4, total);
+
+      for (let i = 0; i < s.length; i += 4) {
+        d[i] = lutR[s[i]];
+        d[i+1] = lutG[s[i+1]];
+        d[i+2] = lutB[s[i+2]];
+        d[i+3] = s[i+3];
+      }
+
+      ctxRes.putImageData(res, 0, 0);
+      drawHistogram(histRes, res);
+      document.getElementById('resTitle').textContent = 'Эквализация гистограммы: RGB (поканально)';
+    }
+
+    // хелперы перевода rgb <-> hsv
+    function rgb2hsv(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const d = max - min;
+      let h = 0, s = max === 0 ? 0 : d / max, v = max;
+
+      if (d !== 0) {
+        if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+        else if (max === g) h = (b - r) / d + 2;
+        else h = (r - g) / d + 4;
+        h /= 6;
+      }
+      return [h, s, v];
+    }
+
+    function hsv2rgb(h, s, v) {
+      let r, g, b;
+      const i = Math.floor(h * 6);
+      const f = h * 6 - i;
+      const p = v * (1 - s);
+      const q = v * (1 - f * s);
+      const t = v * (1 - (1 - f) * s);
+
+      switch (i % 6) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+      }
+      return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+    }
+
+    // 5. эквализация только компоненты яркости в hsv
+    function applyEqualizeHsv() {
+      if (!origImgData) return;
+      const res = ctxRes.createImageData(origImgData);
+      const s = origImgData.data;
+      const d = res.data;
+      const total = origImgData.width * origImgData.height;
+
+      // переводим все пиксели в hsv и собираем v
+      const hsvArr = new Float32Array(total * 3);
+      const vByteArr = new Uint8Array(total);
+
+      for (let i = 0, p = 0; i < s.length; i += 4, p++) {
+        const [h, sat, v] = rgb2hsv(s[i], s[i+1], s[i+2]);
+        hsvArr[p * 3] = h;
+        hsvArr[p * 3 + 1] = sat;
+        hsvArr[p * 3 + 2] = v;
+        vByteArr[p] = Math.round(v * 255);
+      }
+
+      // выравниваем только канал v
+      const lutV = buildEqualizationLut(vByteArr, 1, total);
+
+      // собираем обратно картинку, не трогая цветность
+      for (let i = 0, p = 0; i < s.length; i += 4, p++) {
+        const h = hsvArr[p * 3];
+        const sat = hsvArr[p * 3 + 1];
+        const newV = lutV[vByteArr[p]] / 255;
+
+        const [r, g, b] = hsv2rgb(h, sat, newV);
+        d[i] = r;
+        d[i+1] = g;
+        d[i+2] = b;
+        d[i+3] = s[i+3];
+      }
+
+      ctxRes.putImageData(res, 0, 0);
+      drawHistogram(histRes, res);
+      document.getElementById('resTitle').textContent = 'Эквализация гистограммы: HSV (только яркость V)';
+    }
+
+    // генераторы тестовых картинок чтобы не искать файлы
+    function generateTestImage(type) {
+      const w = 400, h = 300;
+      const off = document.createElement('canvas');
+      off.width = w; off.height = h;
+      const c = off.getContext('2d');
+
+      // рисуем контрастную сцену (пейзаж)
+      const grad = c.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, '#38bdf8');
+      grad.addColorStop(1, '#1e293b');
+      c.fillStyle = grad;
+      c.fillRect(0, 0, w, h);
+
+      // солнце
+      c.fillStyle = '#fde047';
+      c.beginPath();
+      c.arc(300, 80, 45, 0, Math.PI * 2);
+      c.fill();
+
+      // холмы
+      c.fillStyle = '#16a34a';
+      c.beginPath();
+      c.ellipse(100, 260, 200, 100, 0, 0, Math.PI * 2);
+      c.fill();
+
+      c.fillStyle = '#15803d';
+      c.beginPath();
+      c.ellipse(320, 280, 180, 90, 0, 0, Math.PI * 2);
+      c.fill();
+
+      const imgData = c.getImageData(0, 0, w, h);
+      const d = imgData.data;
+
+      // сжимаем диапазон яркостей чтобы сделать картинку проблемной
+      for (let i = 0; i < d.length; i += 4) {
+        if (type === 'dark') {
+          // зажимаем в темную область [10..75]
+          d[i] = 10 + (d[i] / 255) * 65;
+          d[i+1] = 10 + (d[i+1] / 255) * 65;
+          d[i+2] = 10 + (d[i+2] / 255) * 65;
+        } else if (type === 'faded') {
+          // зажимаем в узкий средний диапазон [90..160] (блеклое)
+          d[i] = 90 + (d[i] / 255) * 70;
+          d[i+1] = 90 + (d[i+1] / 255) * 70;
+          d[i+2] = 90 + (d[i+2] / 255) * 70;
+        }
+      }
+      c.putImageData(imgData, 0, 0);
+
+      const img = new Image();
+      img.onload = () => setOriginalImage(img);
+      img.src = off.toDataURL();
+    }
+
+    // слушатели интерфейса
+    document.getElementById('btnReset').onclick = resetToOrig;
+    document.getElementById('btnInvert').onclick = applyInvert;
+    document.getElementById('btnLinear').onclick = applyLinearContrast;
+    document.getElementById('btnEqRgb').onclick = applyEqualizeRgb;
+    document.getElementById('btnEqHsv').onclick = applyEqualizeHsv;
+
+    document.getElementById('brightSlider').oninput = (e) => {
+      document.getElementById('brightVal').textContent = e.target.value;
+      applyBrightness(Number(e.target.value));
+    };
+
+    document.getElementById('btnGenDark').onclick = () => generateTestImage('dark');
+    document.getElementById('btnGenFaded').onclick = () => generateTestImage('faded');
+
+    // загрузка файла с диска
+    document.getElementById('fileInput').onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => setOriginalImage(img);
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    };
+
+    // стартуем сразу с блеклого фото
+    generateTestImage('faded');
+  </script>
+</body>
+</html>
